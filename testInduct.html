@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang = "en">
+   <head>
+    <script src = "https://cdnjs.cloudflare.com/ajax/libs/d3/5.7.0/d3.min.js"></script>
+    <script src = "https://cdnjs.cloudflare.com/ajax/libs/mathjs/5.4.2/math.min.js"></script>
+   </head>
+
+    <body>
+     
+     
+     
+    <script>
+// orifices in m^2
+    //orifices = [30,30,30,30,30,30,30,30,30] // so that we can change them  
+numtanks= 5;
+orifices = []
+for (x=0;x< numtanks;x++)
+    orifices.push(10)  // the orifices between the smaller tanks
+for (x=0;x< numtanks;x++)
+    orifices.push(10)  // the orifices between small tank and the big one
+
+	    // measurements in m
+var ystart = .5
+var yoffset = .2
+var xstart = 1.1
+var xoffset = .2
+
+var smalltanks = []
+for (x=0;x<numtanks;x++){
+    smalltanks[x] = {"name":"Tank "+x,
+		  "height":1.0,
+		  "width":.03+0.01*x,
+		  "depth":.03+.01*x,
+		  "x":.500+.1*x,
+		  "y":.100,
+		  "volume":0,
+		  "fluidheight": 0}
+}
+    
+    var tanks = [{"name":"Main Tank",
+		  "height":1.0,
+		  "width":.300,
+		  "depth":.300,
+		  "x":.100,
+		  "y":.100,
+		  "volume":.5,
+		  "fluidheight": 00}];
+tanks = tanks.concat(smalltanks)
+
+/*var flow = function(area,height1,height2){
+    if (height1 > height2)
+	return area * Math.sqrt(2*(height1-height2))
+    else
+	return -area * Math.sqrt(2*(height2-height1))
+}*/
+
+var flow = function(lastq,area,height1,height2){
+    
+	return lastq *.99 + area * (height1-height2)*9.8*deltaT ;
+}
+
+
+	    
+var hertz = .2
+var outerflows = []
+var innerflows = []
+var transferlist = []
+
+for (x=0;x<numtanks;x++){
+    transferlist.push([x,x+1,x+2])
+    outerflows.push(0)
+    innerflows.push(0)
+}
+for (x=0;x<numtanks;x++)
+    transferlist.push([x+numtanks,0,x+1])
+transferlist[numtanks-1][2] = 1
+
+var transfer = function(){
+    //for each orifin A* sqrt(2* (ht1 - ht2))
+    //console.log(transferlist)
+    
+    for (x = 0;x<numtanks;x++){
+	//console.log(x)
+	diameter = orifices[transferlist[x][0]]
+	height1 = tanks[transferlist[x][1]].fluidheight
+	height2 = tanks[transferlist[x][2]].fluidheight
+	area = Math.pow((diameter/2000.0),2) * Math.PI
+	//console.log(x,flow(area,height1,height2))
+	outerflows[x] =flow(outerflows[x],area,height1,height2)
+	
+    }
+    
+    for (x = 0;x<numtanks;x++){
+	transfernum = x+numtanks;
+	diameter = orifices[transferlist[transfernum][0]]
+	height1 = tanks[transferlist[transfernum][1]].fluidheight
+	height2 = tanks[transferlist[transfernum][2]].fluidheight
+	area = Math.pow((diameter/2000.0),2) * Math.PI
+	//console.log(x,flow(area,height1,height2))
+	innerflows[x] = flow(innerflows[x],area,height1,height2)
+	
+    }
+
+
+    xMatrix = math.identity(outerflows.length)
+    xMatrix = math.multiply(xMatrix,-1)		  
+    for (x=0;x<outerflows.length;x++)
+	xMatrix.subset(math.index(x,(x+1)%outerflows.length),1)
+    //for (x=0;x<flows.length;x++)    
+//	xMatrix.subset(math.index(5,x),0)
+    fMatrix = math.matrix(outerflows)
+    oMatrix = math.multiply(fMatrix,xMatrix)
+    amounts = math.multiply(oMatrix,deltaT)
+    f2Matrix = math.multiply(math.matrix(innerflows),deltaT)
+		    //
+    for (x = 0;x < numtanks;x++)
+	tanks[x+1].fluidheight = math.max(0,tanks[x+1].fluidheight + (amounts.subset(math.index(x)) + f2Matrix.subset(math.index(x)))/(tanks[x+1].width*tanks[x+1].depth))
+    for (x = 0;x< numtanks;x++){
+	//console.log(tanks[0].fluidheight)
+	tanks[0].fluidheight = math.max(0,tanks[0].fluidheight-(f2Matrix.subset(math.index(x)))/(tanks[0].width*tanks[0].depth))
+    }
+}
+
+var canvas = d3.select("body")
+	   .append("svg")
+           .attr("viewBox","0 0 2.5 1.25")
+	   .attr("width","1000px")
+	   .attr("height","500px")
+
+			 
+    
+
+var tankGroups = canvas
+    .selectAll(".tank")
+    .data(tanks)
+    .enter()
+    .append('g').attr('class','tank')
+tankGroups.append('text')
+    .text(function(d,i) {return i})
+    .attr('fill','black')
+    .attr('x',function(d) {return d.x})
+    .attr('y',function(d) {return d.y})
+    
+    .attr('dy',-.03)
+    .attr('font-size',.05)
+tankGroups.append('rect')
+    .attr("class","fluid")
+    .attr("x",function(d) {return d.x})
+    .attr("y",function(d) {return d.y+d.height-d.fluidheight})
+    .attr("width",function(d) {return d.width})
+    .attr("height",function(d) {return d.fluidheight})
+    .attr("fill","blue")
+
+tankGroups.append('rect')
+    .attr("x",function(d) {return d.x})
+    .attr("y",function(d) {return d.y})
+    .attr("width",function(d) {return d.width})
+    .attr("height",function(d) {return d.height})
+    .attr("fill","none")
+    .attr("stroke","black")
+    .attr("stroke-width",".001")
+
+canvas.append('text')
+    .attr('fill','black')
+    .attr('font-size',0.05)
+    .attr('x',xstart)
+    .attr('y',ystart-.5*yoffset)
+    .attr('dx','-1em')
+    .text('Flow Rates')
+
+var orificeIndicatorsTxt = canvas
+    .selectAll(".orificetxt")
+    .data(d3.range(transferlist.length))
+    .enter()
+    .append('text').attr('class','orificetxt')
+    .attr('fill','black')
+    .attr('font-size','.04')
+    .attr('text-anchor','middle')
+    .attr('x',function(d,i) {return i%numtanks*xoffset+xstart})
+    .attr('y',function(d,i) {if (i<numtanks)
+	                         return ystart+.3*yoffset
+			     else
+				 return ystart+3*yoffset
+			    })
+    .text(function (d,i) {return transferlist[i][1]+'>'+transferlist[i][2]})
+
+
+var orificeIndicators = canvas
+    .selectAll(".orifice")
+    .data(orifices)
+    .enter()
+    .append('circle').attr('class','orifice')
+    .attr('r',.08)
+    .attr('cx',function(d,i) {return i%numtanks*xoffset+xstart})
+    .attr('cy',function(d,i) {return (1+math.floor(i/numtanks))*yoffset+ystart})
+    .attr('stroke','black')
+    .attr('stroke-width',.005)
+
+
+var orificeSizes = canvas
+    .selectAll(".orificesize")
+    .data(orifices)
+    .enter()
+    .append('text').attr('class','orificesize')
+    .text(function(d) {return d.toFixed(0)})
+    .attr('x',function(d,i) {return i%numtanks*xoffset+xstart})
+    .attr('y',function(d,i) {return (1+math.floor(i/numtanks))*yoffset+ystart})
+    .attr('dy',function(d,i) {if (i >= numtanks)
+			      return .1; else return -.07;})
+    .attr('text-anchor','middle')
+    .attr('fill','black')
+    .attr('font-size',0.05)
+
+//console.log([hertz])
+var hertzText = canvas
+    .selectAll(".hertzText")
+    .data([hertz])
+    .enter()
+    .append("text")
+    .attr("class","hertzText")
+    .text(function(d) { return hertz.toFixed(2) + " Hertz";})
+    .attr("x",.1)
+    .attr("y",1.25)
+    .attr("fill","black")
+    .attr("font-size",0.06)
+
+var hertzSliderRange = d3.scaleLinear()
+    .domain([0,.8])
+    .range([0,1])
+    .clamp(true)
+
+
+var hertzSlider = canvas
+    .selectAll(".hertzSlider")
+    .data([hertz])
+    .enter()
+    .append('g')
+    .attr('class','hertzSlider')
+    .attr('transform','translate(.5,1.15)')
+hertzSlider.append("line")
+    .attr("x1",-.4)
+    .attr("x2",.4)
+    .attr("y1",0)
+    .attr("y2",0)
+    .attr('stroke','black')
+    .attr('stroke-width',.005)
+
+hertzSlider.append("circle")
+    .attr('class','hertzSliderCircle')
+    .attr("cx",function(x,i) {return -0.4 + hertzSliderRange.invert(hertz)})
+    .attr("cy",0)
+    .attr("r",.015)
+    .attr("fill","black")
+hertzSlider.append("line")
+    .attr("x1",-.4)
+    .attr("x2",.4)
+    .attr("y1",0)
+    .attr("y2",0)
+    .attr('stroke','transparent')
+    .attr('stroke-width',.04)
+    .attr('cursor','grab')
+    .call(d3.drag()
+	  .on('drag',function(x,i){hertz=hertzSliderRange(hertzSliderRange.invert(hertz)+d3.event.dx)}))
+
+
+
+
+var orificeSliderRange = d3.scaleLinear()
+    .domain([0,.1])
+    .range([0,30])
+    .clamp(true)
+
+var orificeSlider = canvas
+    .selectAll(".orificeSlider")
+    .data(orifices)
+    .enter()
+    .append('g')
+    .attr('class','orificeSlider')
+    .attr('transform',function(d,i){if (i>=numtanks)
+				    lclYoffset = -.06;
+				    else
+					lclYoffset = .06; 
+				    return "translate("+(i%numtanks*xoffset+xstart)+","+((1+math.floor(i/numtanks))*yoffset+ystart+lclYoffset)+")"})
+orificeSlider.append("line")
+    .attr("x1",-.05)
+    .attr("x2",.05)
+    .attr("y1",0)
+    .attr("y2",0)
+    .attr('stroke','black')
+    .attr('stroke-width',.005)
+
+orificeSlider.append("circle")
+    .attr('class','orificeSliderCircle')
+    .attr("cx",function(x,i) {return -0.05 + orificeSliderRange.invert(x)})
+    .attr("cy",0)
+    .attr("r",.015)
+    .attr("fill","black")
+orificeSlider.append("line")
+    .attr("x1",-.05)
+    .attr("x2",.05)
+    .attr("y1",0)
+    .attr("y2",0)
+    .attr('stroke','transparent')
+    .attr('stroke-width',.04)
+    .attr('cursor','grab')
+    .call(d3.drag()
+	  .on('drag',function(x,i){orifices[i]=orificeSliderRange(orificeSliderRange.invert(orifices[i])+d3.event.dx)}))
+		   
+
+//var orificeIncrementors = canvas
+//    .selectAll(".orificeplus")
+//    .data(orifices)
+//    .enter()
+//    .append('text').attr('class','orificeplus')
+//    .text('+')
+//    .attr('x',function(d,i) {return i%numtanks*xoffset+xstart})
+//    .attr('y',function(d,i) {return (1+math.floor(i/numtanks))*yoffset+ystart})
+//    .attr('dx','-0.07')
+//    .attr('dy','.02')
+//    .attr('fill','black')
+//   .attr('font-size',0.05)
+// 
+//    .on('click',function(d,i){orifices[i] = math.min(orifices[i]+1,30)})
+//
+//var orificeDecrementors = canvas
+//    .selectAll(".orificeminus")
+//    .data(orifices)
+//    .enter()
+//    .append('text').attr('class','orificeminus')
+//    .text('-')
+//    .attr('x',function(d,i) {return i%numtanks*xoffset+xstart})
+//    .attr('y',function(d,i) {return (1+math.floor(i/numtanks))*yoffset+ystart})
+//    .attr('dx','0.05')
+//    .attr('dy','.02')
+//    .attr('fill','black')
+//    .attr('font-size',0.05)
+//
+//    .on('click',function(d,i){orifices[i] = math.max(orifices[i]-1,0)})
+//
+
+var flowscales = []
+var updateOrifice = function(){
+    maxflows= []
+    for (x=0;x<orifices.length;x++)
+	maxflows.push(flow(math.pow(orifices[x]/1000,2),1.0,0.0))
+    flowscales=[]
+    for (x=0;x<orifices.length;x++)
+	flowscales.push(d3.scaleLinear().domain([-maxflows[x],0,maxflows[x]]).range(['red','white','blue']))
+    lcl = canvas.selectAll('.orifice')
+        .data(orifices)
+        .attr('r',function(d) {return d/1000.0})
+        .attr('fill',function(d,i) {
+	    if (i >= numtanks)
+		return flowscales[i](innerflows[i-numtanks])
+	    else
+		return flowscales[i](outerflows[i])})
+ orificeSizes = canvas
+    .selectAll(".orificesize")
+    .data(orifices)
+	.text(function(d) {return d.toFixed(0)})
+orificeCircles = canvas.selectAll(".orificeSliderCircle")
+	.data(orifices)
+        .attr("cx",function(x,i) {return -0.05 + orificeSliderRange.invert(x)})
+hertzCircles = canvas.selectAll(".hertzSliderCircle")
+	.data([hertz])
+        .attr("cx",function(x,i) {return -0.4 + hertzSliderRange.invert(x)})
+    hertzText = canvas.selectAll(".hertzText")
+	.data([hertz])
+        .text(function(d) {return hertz.toFixed(2) + " Hertz";})
+    
+}
+
+update = function(){
+    lcltanks = canvas.selectAll(".tank")
+    lcltanks.select(".fluid")
+	.attr("y",function(d) {return d.y+d.height-d.fluidheight})
+	.attr("height",function(d) {return d.fluidheight})
+}
+reset = canvas.append('g')
+    .attr("transform","translate(.05,1.05)")
+		.on("click",function() {currentPhase = 0;
+		for (x=0;x<numtanks+1;x++)
+			    tanks[x].fluidheight = 0;})
+
+reset.append("rect")
+    .attr('x',0)
+    .attr('y',0)
+    .attr('fill','red')
+    .attr('stroke','black')
+    .attr('stroke-width',.001)
+    .attr('rx',.025)
+    .attr('ry',.025)
+    .attr('height',.075)
+    .attr('width',.15)
+reset.append("text")
+    .text('reset')
+    .attr('y',.075)
+    .attr('dy',"-.5em")
+    .attr('dx',.075)
+    .attr("dominant-baseline", "central")
+    .attr('text-anchor','middle')
+    .attr('font-size',0.05)
+    .attr('fill','black')
+
+var currentPhase = 0;
+var currentTime = new Date();
+var startTime = new Date()
+var lastTime = new Date();
+
+var deltaT = 0
+var lastFluidHeight = .5					
+var transition = function(){
+    currentTime = new Date()
+    deltaT = (currentTime - lastTime) / 1000.0
+    currentPhase = (currentPhase + 2*Math.PI * hertz * deltaT)%(2*Math.PI)
+    lastTime = currentTime
+    if (hertz != 0)
+	tanks[0].fluidheight += (.5 +.5* Math.sin(currentPhase)) - lastFluidHeight;
+    lastFluidHeight = tanks[0].fluidheight;
+    transfer();
+    update();
+    updateOrifice()
+    setTimeout(transition,1)
+}
+
+transition()
+         // write your d3 code here.. 
+      </script>
+   </body>
+</html>
+
