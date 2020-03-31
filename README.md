@@ -12,5 +12,5 @@ I currently have the following:
 
 * [Test](https://w4kpm.github.io/CoupledTanks/test.html) - this has uniform small tank size and the inductance of the tubes is not accounted for.
 * [TestInduct](https://w4kpm.github.io/CoupledTanks/testInduct.html) - this has different sized small tanks and the inductance of the tubes is accounted for.
-* [FluidLab](https:\\w4kpm.github.io\CoupledTanks\Fluid%20Lab.pdf) - a set of notes about the equations used for calculating fluid flow in each of the tubes and tanks.
+* [FluidLab](https://w4kpm.github.io/CoupledTanks/Fluid%20Lab.pdf) - a set of notes about the equations used for calculating fluid flow in each of the tubes and tanks.
 
